@@ -198,7 +198,7 @@ export const VoiceButton = React.forwardRef<
           {shouldShowTrailing && (
             <div className="animate-in fade-in absolute inset-0 flex items-center justify-center duration-300">
               {typeof trailing === "string" ? (
-                <span className="text-muted-foreground px-1.5 font-mono text-[10px] font-medium select-none">
+                <span className="text-foreground px-1.5 font-base text-[10px] font-medium select-none">
                   {trailing}
                 </span>
               ) : (

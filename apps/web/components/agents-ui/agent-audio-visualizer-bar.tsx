@@ -16,7 +16,7 @@ import {
   type TrackReferenceOrPlaceholder,
   useMultibandTrackVolume,
 } from '@livekit/components-react';
-import { useAgentAudioVisualizerBarAnimator } from '@/hooks/agents-ui/use-agent-audio-visualizer-bar';
+import { useAgentAudioVisualizerBar } from '@/hooks/agents-ui/use-agent-audio-visualizer-bar';
 import { cn } from '@workspace/ui/lib/utils';
 
 function cloneSingleChild(
@@ -107,6 +107,10 @@ export interface AgentAudioVisualizerBarProps {
    */
   audioTrack?: LocalAudioTrack | RemoteAudioTrack | TrackReferenceOrPlaceholder;
   /**
+   * Optional manual frequencies for visualizer, e.g. from an AnalyserNode
+   */
+  frequencies?: number[];
+  /**
    * Additional CSS class names to apply to the container.
    */
   className?: string;
@@ -139,6 +143,7 @@ export function AgentAudioVisualizerBar({
   color,
   barCount,
   audioTrack,
+  frequencies,
   className,
   children,
   style,
@@ -165,30 +170,21 @@ export function AgentAudioVisualizerBar({
     hiPass: 200,
   });
 
-  const sequencerInterval = useMemo(() => {
-    switch (state) {
-      case 'connecting':
-        return 2000 / _barCount;
-      case 'initializing':
-        return 2000;
-      case 'listening':
-        return 500;
-      case 'thinking':
-        return 150;
-      default:
-        return 1000;
-    }
-  }, [state, _barCount]);
+  const animHeights = useAgentAudioVisualizerBar(state, _barCount);
 
-  const highlightedIndices = useAgentAudioVisualizerBarAnimator(
-    state,
-    _barCount,
-    sequencerInterval,
-  );
+  // We highlight all bars by default so they have full opacity
+  // You can customize this if you want specific bars highlighted based on state
+  const highlightedIndices = useMemo(() => Array.from({ length: _barCount }, (_, i) => i), [_barCount]);
 
   const bands = useMemo(
-    () => (state === 'speaking' ? volumeBands : new Array(_barCount).fill(0)),
-    [state, volumeBands, _barCount],
+    () => {
+      if (state === 'speaking') {
+        if (frequencies && frequencies.length > 0) return frequencies;
+        return volumeBands;
+      }
+      return animHeights;
+    },
+    [state, volumeBands, frequencies, animHeights],
   );
 
   if (children && Array.isArray(children)) {

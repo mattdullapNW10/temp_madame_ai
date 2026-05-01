@@ -362,7 +362,7 @@ export const LiveWaveform = ({
               )
               const value = Math.min(
                 1,
-                (relevantData[dataIndex] / 255) * sensitivity
+                ((relevantData[dataIndex] ?? 0) / 255) * sensitivity
               )
               newBars.push(Math.max(0.05, value))
             }
@@ -373,7 +373,7 @@ export const LiveWaveform = ({
               )
               const value = Math.min(
                 1,
-                (relevantData[dataIndex] / 255) * sensitivity
+                ((relevantData[dataIndex] ?? 0) / 255) * sensitivity
               )
               newBars.push(Math.max(0.05, value))
             }
@@ -388,7 +388,7 @@ export const LiveWaveform = ({
             const relevantData = dataArray.slice(startFreq, endFreq)
 
             for (let i = 0; i < relevantData.length; i++) {
-              sum += relevantData[i]
+              sum += relevantData[i] ?? 0
             }
             const average = (sum / relevantData.length / 255) * sensitivity
 
@@ -418,9 +418,8 @@ export const LiveWaveform = ({
         barColor ||
         (() => {
           const style = getComputedStyle(canvas)
-          // Try to get the computed color value directly
           const color = style.color
-          return color || "#000"
+          return color || "#181632"
         })()
 
       const step = barWidth + barGap
@@ -551,7 +550,7 @@ export const LiveWaveform = ({
         <div className="border-muted-foreground/20 absolute top-1/2 right-0 left-0 -translate-y-1/2 border-t-2 border-dotted" />
       )}
       <canvas
-        className="block h-full w-full"
+        className="text-foreground block h-full w-full"
         ref={canvasRef}
         aria-hidden="true"
       />

@@ -67,7 +67,9 @@ export function useAgentAudioVisualizerAura(
       case 'idle':
       case 'failed':
       case 'disconnected':
-        setSpeed(10);
+        setTimeout(() => {
+          setSpeed(10);
+        }, 0);
         animateScale(0.2, DEFAULT_TRANSITION);
         animateAmplitude(1.2, DEFAULT_TRANSITION);
         animateFrequency(0.4, DEFAULT_TRANSITION);
@@ -122,3 +124,5 @@ export function useAgentAudioVisualizerAura(
     brightness,
   };
 }
+
+export type { AgentState } from '@livekit/components-react';
