@@ -11,6 +11,10 @@ import {
   processMicrophoneChunk,
   type AudioRefs,
 } from '@/lib/audio-utils';
+import { encodeWavFromFloat32Chunks } from '@/lib/wav-encoder';
+import { analyzePronunciationQuick } from '@/lib/pronunciation-api';
+
+const MIC_SAMPLE_RATE = 16000;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +27,12 @@ export type ConversationStatus =
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  /** Stable id for in-place updates (e.g. attaching pronunciation results) */
+  id?: string;
+  /** Pronunciation analysis attached to this user message, if any */
+  pronunciation?: unknown;
+  /** True while the pronunciation API call for this message is in flight */
+  pronunciationLoading?: boolean;
 }
 
 export interface SessionConfig {
@@ -85,6 +95,11 @@ export function useMadameConversation(options: UseMadameConversationOptions = {}
   const nextStartTimeRef = useRef(0);
   const audioQueueRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const audioRefs: AudioRefs = { nextStartTimeRef, audioQueueRef, analyserRef };
+
+  // Per-utterance microphone buffer (raw Float32 PCM @ 16 kHz) for
+  // pronunciation analysis. Cleared each time we send a final transcript.
+  const userAudioChunksRef = useRef<Float32Array[]>([]);
+  const sessionConfigRef = useRef<SessionConfig>({});
   const setMuted = useCallback((muted: boolean) => {
     setIsMuted(muted);
     isMutedRef.current = muted;
@@ -163,7 +178,10 @@ export function useMadameConversation(options: UseMadameConversationOptions = {}
     processor.onaudioprocess = (e) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
       if (isMutedRef.current) return;
-      const base64 = processMicrophoneChunk(e.inputBuffer.getChannelData(0));
+      const input = e.inputBuffer.getChannelData(0);
+      // Buffer a copy for pronunciation analysis on next final transcript.
+      userAudioChunksRef.current.push(new Float32Array(input));
+      const base64 = processMicrophoneChunk(input);
       wsRef.current.send(JSON.stringify({ type: 'audio_input', data: base64 }));
     };
 
@@ -203,9 +221,49 @@ export function useMadameConversation(options: UseMadameConversationOptions = {}
           if (isFinal && text) {
             setIsProcessing(false);
             setInterimTranscript('');
-            const msg: ChatMessage = { role: 'user', content: text };
+            const id =
+              (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                ? crypto.randomUUID()
+                : `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+            // Snapshot+clear the buffered mic audio for this utterance.
+            const chunks = userAudioChunksRef.current;
+            userAudioChunksRef.current = [];
+            const willAnalyze = chunks.length > 0;
+
+            const msg: ChatMessage = {
+              role: 'user',
+              content: text,
+              id,
+              pronunciationLoading: willAnalyze,
+            };
             setChatHistory((prev) => [...prev, msg]);
             onMessageRef.current?.(msg);
+
+            if (willAnalyze) {
+              const wav = encodeWavFromFloat32Chunks(chunks, MIC_SAMPLE_RATE);
+              const cfg = sessionConfigRef.current;
+              const attach = (pronunciation: unknown) => {
+                setChatHistory((prev) =>
+                  prev.map((m) =>
+                    m.id === id
+                      ? { ...m, pronunciation, pronunciationLoading: false }
+                      : m,
+                  ),
+                );
+              };
+              analyzePronunciationQuick({
+                audio: wav,
+                targetText: text,
+                targetLanguage: cfg.targetLanguage,
+                nativeLanguage: cfg.language,
+                sessionId: cfg.firestoreDocId,
+              })
+                .then(attach)
+                .catch((err) =>
+                  attach({ error: err instanceof Error ? err.message : String(err) }),
+                );
+            }
           } else if (text) {
             setIsProcessing(true);
             setInterimTranscript(text);
@@ -238,6 +296,8 @@ export function useMadameConversation(options: UseMadameConversationOptions = {}
     async (config: SessionConfig = {}) => {
       if (wsRef.current) return; // already open
 
+      sessionConfigRef.current = config;
+      userAudioChunksRef.current = [];
       setMuted(false);
       setStatus('connecting');
       onStatusChangeRef.current?.('connecting');

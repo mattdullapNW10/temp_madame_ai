@@ -18,6 +18,7 @@ import { type AgentState } from '@livekit/components-react';
 import { AgentAudioVisualizerGrid } from '@/components/agents-ui/agent-audio-visualizer-grid';
 import { AgentAvatar } from '@/components/agents-ui/agent-avatar';
 import { useMadameConversation, type ChatMessage } from '@/hooks/use-madame-conversation';
+import { PronunciationCard, type PronunciationResult } from '@/components/pronunciation-card';
 import { useAnalyserFrequencies } from '@/hooks/use-analyser-frequencies';
 import {
   VoiceButton,
@@ -101,7 +102,7 @@ function toAgentState(
   isSpeaking: boolean,
   interimTranscript: string,
   isProcessing: boolean,
-  lastRole?: 'user' | 'assistant',
+  lastRole?: ChatMessage['role'],
 ): AgentState {
   if (status === 'disconnected' || status === 'disconnecting') return 'disconnected';
   if (status === 'connecting') return 'connecting';
@@ -554,7 +555,7 @@ export default function Page() {
                   ) : (
                     chatHistory.map((msg, i) => (
                       <Message
-                        key={i}
+                        key={msg.id ?? i}
                         from={msg.role === 'user' ? 'user' : 'assistant'}
                         className={cn(
                           'group py-2 items-end gap-2',
@@ -598,20 +599,30 @@ export default function Page() {
                             </ContextMenuContent>
                           </ContextMenu>
                         ) : (
-                          <div className="flex max-w-full flex-row items-end justify-end gap-2">
-                            <MessageContent
-                              variant="flat"
-                              className={cn(
-                                'max-w-[min(85%,calc(100%-3rem))] rounded-xl border border-border !bg-foreground p-4 text-xs font-medium !text-white shadow-none',
-                              )}
-                            >
-                              {msg.content}
-                            </MessageContent>
-                            <MessageAvatar
-                              src=""
-                              name="Me"
-                              className="size-10 shrink-0 rounded-full border border-border bg-white text-foreground"
-                            />
+                          <div className="flex max-w-full flex-1 flex-col items-end gap-1">
+                            <div className="flex max-w-full flex-row items-end justify-end gap-2">
+                              <MessageContent
+                                variant="flat"
+                                className={cn(
+                                  'max-w-[min(85%,calc(100%-3rem))] rounded-xl border border-border !bg-foreground p-4 text-xs font-medium !text-white shadow-none',
+                                )}
+                              >
+                                {msg.content}
+                              </MessageContent>
+                              <MessageAvatar
+                                src=""
+                                name="Me"
+                                className="size-10 shrink-0 rounded-full border border-border bg-white text-foreground"
+                              />
+                            </div>
+                            {(msg.pronunciationLoading || msg.pronunciation != null) && (
+                              <div className="w-full max-w-[min(85%,calc(100%-3rem))] pr-12">
+                                <PronunciationCard
+                                  loading={msg.pronunciationLoading}
+                                  data={msg.pronunciation as PronunciationResult | undefined}
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
                       </Message>
