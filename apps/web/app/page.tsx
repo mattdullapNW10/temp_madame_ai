@@ -184,7 +184,7 @@ export default function Page() {
         targetLanguage: localStorage.getItem('targetLanguage') ?? 'fr',
         level: Number(localStorage.getItem('level') ?? 3),
         age: localStorage.getItem('age') ?? 'adult',
-        activity: null,
+        activity: localStorage.getItem('objective') ?? null,
         memory: '',
       });
     } else {
